@@ -5,7 +5,6 @@ import { loadOAuthClientConfig, type OAuthClientConfig } from "../play/oauth.js"
 
 export const MCP_READ_SCOPE = "play.read";
 export const MCP_WRITE_SCOPE = "play.write";
-export const MCP_DESTRUCTIVE_SCOPE = "play.destructive";
 export const MCP_OFFLINE_SCOPE = "offline_access";
 
 export interface RemoteOAuthConfig {
