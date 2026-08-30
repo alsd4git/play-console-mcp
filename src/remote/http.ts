@@ -12,7 +12,6 @@ import { bearerToken, RemoteOAuthBroker } from "./oauth.js";
 import {
   isLoopbackHostname,
   loadRemoteOAuthConfig,
-  MCP_DESTRUCTIVE_SCOPE,
   MCP_READ_SCOPE,
   MCP_WRITE_SCOPE,
 } from "./config.js";
@@ -192,19 +191,15 @@ export async function startRemoteServer(): Promise<void> {
       const publisherClient = new GooglePlayClient(googleTokenProvider);
       const reportingClient = new GooglePlayClient(googleTokenProvider, REPORTING_BASE_URL);
       const profile = auth.scopes.includes(MCP_WRITE_SCOPE) ? "full" : "readonly";
-      const allowDestructive =
-        destructiveConfigured && auth.scopes.includes(MCP_DESTRUCTIVE_SCOPE);
       const mcpServer = createServer(
         publisherClient,
         reportingClient,
         defaultPackageName,
-        allowDestructive,
+        destructiveConfigured,
         { profile, allowedPackages },
       );
       const requiredScopes = new Set(
-        auth.scopes.filter((scope) =>
-          [MCP_READ_SCOPE, MCP_WRITE_SCOPE, MCP_DESTRUCTIVE_SCOPE].includes(scope),
-        ),
+        auth.scopes.filter((scope) => [MCP_READ_SCOPE, MCP_WRITE_SCOPE].includes(scope)),
       );
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
