@@ -17,6 +17,7 @@ export interface RemoteOAuthConfig {
   allowedEmails: ReadonlySet<string>;
   allowAnyGoogleAccount: boolean;
   allowDestructive: boolean;
+  maxRegisteredClients: number;
 }
 
 function envBoolean(name: string): boolean {
@@ -60,6 +61,14 @@ function remoteDataPath(): string {
   return join(configHome, "play-console-mcp", "remote-oauth.json");
 }
 
+function positiveInteger(value: string | undefined, fallback: number, name: string): number {
+  const result = value === undefined ? fallback : Number(value);
+  if (!Number.isInteger(result) || result < 1) {
+    throw new Error(`${name} must be a positive integer.`);
+  }
+  return result;
+}
+
 function parseAllowedEmails(): ReadonlySet<string> {
   const raw = envValue("GOOGLE_OAUTH_ALLOWED_EMAILS");
   if (!raw) return new Set();
@@ -83,10 +92,17 @@ export async function loadRemoteOAuthConfig(): Promise<RemoteOAuthConfig> {
   assertNetworkUrl(resource, "MCP_PUBLIC_URL", allowInsecureHttp);
 
   const issuer = new URL(envValue("MCP_OAUTH_ISSUER") ?? resource.origin);
-  if (issuer.username || issuer.password || issuer.search || issuer.hash) {
-    throw new Error("MCP_OAUTH_ISSUER must not contain credentials, a query string, or a fragment.");
+  if (
+    issuer.username ||
+    issuer.password ||
+    issuer.search ||
+    issuer.hash ||
+    issuer.pathname !== "/"
+  ) {
+    throw new Error(
+      "MCP_OAUTH_ISSUER must be an origin only, without credentials, a path, query string, or fragment.",
+    );
   }
-  issuer.pathname = issuer.pathname.replace(/\/$/, "") || "/";
   assertNetworkUrl(issuer, "MCP_OAUTH_ISSUER", allowInsecureHttp);
 
   const masterSecret = envValue("MCP_OAUTH_SECRET");
@@ -134,6 +150,11 @@ export async function loadRemoteOAuthConfig(): Promise<RemoteOAuthConfig> {
     allowedEmails,
     allowAnyGoogleAccount,
     allowDestructive: envBoolean("GOOGLE_PLAY_ALLOW_DESTRUCTIVE"),
+    maxRegisteredClients: positiveInteger(
+      envValue("MCP_OAUTH_MAX_CLIENTS"),
+      100,
+      "MCP_OAUTH_MAX_CLIENTS",
+    ),
   };
 }
 
