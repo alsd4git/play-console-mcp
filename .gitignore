@@ -10,3 +10,4 @@ service-account*.json
 client_secret*.json
 oauth-client*.json
 google-oauth*.json
+remote-oauth*.json
