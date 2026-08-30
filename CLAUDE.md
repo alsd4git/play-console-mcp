@@ -1,118 +1,166 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with this repository.
 
 ## What this is
 
-A STDIO MCP server that exposes the **official Google Play Developer API** (`androidpublisher` v3)
-and the **Play Developer Reporting API** (v1beta1) as tools for AI agents, centered on **user
-feedback** (read and reply to Play Store reviews) and **release management** (tracks, promotion,
-staged rollouts), plus Android vitals (crash/ANR rates, error issues and reports). Published to npm
-as `@orellbuehler/play-console-mcp` and run via `npx`; the compiled `dist/index.js` is the `bin`
-entry. See `README.md` for the tool catalog and env-var reference.
+An MCP server for the **Google Play Developer API** (`androidpublisher` v3) and **Play Developer Reporting API** (`v1beta1`). It focuses on Play Store reviews, release/track management, localized listings and Android vitals.
 
-Note the Android Management API is a **different, unrelated** API for enterprise device management —
-it is not used here.
+This fork keeps the upstream `stdio` server and adds optional local Google OAuth, tool-policy profiles, OpenAI/Codex packaging and a separate Streamable HTTP + OAuth broker for persistent ChatGPT/Codex app connections.
+
+APK/AAB upload is intentionally out of scope. CI or Play Console uploads signed artifacts; the MCP may inspect their metadata and operate on their version codes.
 
 ## Commands
 
 ```bash
-npm run build         # tsc -p tsconfig.build.json -> dist/
-npm test              # vitest run (all tests)
-npm run test:watch    # vitest watch
-npm run lint          # eslint src
-npm run typecheck     # tsc --noEmit
-npm run format        # prettier --write .
-npm run format:check  # prettier --check . (what CI runs)
+npm run build
+npm test
+npm run test:watch
+npm run lint
+npm run typecheck
+npm run format
+npm run format:check
 ```
 
 Run a single test file or pattern:
 
 ```bash
 npx vitest run src/__tests__/releases.test.ts
+npx vitest run src/__tests__/remote-oauth.test.ts
 npx vitest run -t "promote_release"
 ```
 
-CI (`.github/workflows/ci.yml`) runs `format:check`, `lint`, `typecheck`, and `test` + `build` on
-Node 20 and 22 — all must pass. Run them locally before committing.
+CI runs format, lint, typecheck, tests and build on supported Node versions.
 
-## Architecture
+## Entry points
 
-Request flow: `index.ts` reads config, builds the server via `server.ts:createServer(client,
-reportingClient, packageName, allowDestructive)`, and connects it over stdio. Each tool calls one of
-the two REST clients.
+`src/index.ts` is the executable entry point and dispatches without importing local credential configuration unnecessarily.
 
-- **`src/index.ts`** — entry point. Stdio transport only (single-account).
-- **`src/config.ts`** — reads env at import time and **exits the process** if neither
-  `GOOGLE_SERVICE_ACCOUNT_KEY` nor `GOOGLE_SERVICE_ACCOUNT_KEY_PATH` is set. Exports `config`
-  (including `allowDestructive` from `GOOGLE_PLAY_ALLOW_DESTRUCTIVE`), `client` (androidpublisher)
-  and `reportingClient` (Play Developer Reporting).
-- **`src/play/auth.ts`** — `createTokenProvider(auth)`: signs an RS256 service-account JWT with
-  `jose` and exchanges it at `https://oauth2.googleapis.com/token` for an OAuth access token, cached
-  until expiry with a 60 s buffer. The JWT carries **both** scopes (`androidpublisher` and
-  `playdeveloperreporting`), so one provider serves both clients. The key JSON is loaded lazily on
-  first use (inline or from a file path). No `googleapis` / `google-auth-library` dependency.
-- **`src/play/client.ts`** — `GooglePlayClient`, a thin `fetch` wrapper. One class, two instances
-  built from `PUBLISHER_BASE_URL` and `REPORTING_BASE_URL`. `get`/`post`/`put`/`patch`/`del`; `post`
-  takes optional query params (needed for `:commit?changesNotSentForReview`) and tolerates empty
-  response bodies. `upload` posts raw bytes with an explicit `Content-Type` to
-  `PUBLISHER_UPLOAD_BASE_URL` with `uploadType=media` — that host is a separate prefix
-  (`/upload/androidpublisher/v3`), which is why it is its own method. Throws on non-2xx with the
-  response body in the message.
-- **`src/play/edits.ts`** — the Play **edits workflow**, which every release write goes through:
-  `readWithEdit` (insert edit → read → always delete) and `withEdit` (insert → mutate →
-  `:validate` + delete for a dry run, or `:commit`; delete the edit on failure).
-- **`src/play/format.ts`** — `ok`/`err` (MCP content envelopes; `ok` passes strings through
-  unquoted) and `resolvePackage` (per-tool `package_name` overriding `GOOGLE_PLAY_PACKAGE_NAME`,
-  throwing a helpful error if neither is set).
-- **`src/tools/*.ts`** — each exports a `register*Tools(server, client, packageName?)` function that
-  `server.ts` calls: `reviews`, `releases`, `listings`, `artifacts`, `recovery` (all on the publisher
-  client), `vitals` and `apps` (on the reporting client). `listings` and `recovery` take a fourth
-  `allowDestructive` argument.
-- **`src/tools/shared.ts`** — Zod shapes reused across tool modules: `packageArg`, `writeShape`
-  (`validate_only` + `changes_not_sent_for_review`) and `releaseNotesSchema`. Reuse these instead of
-  redeclaring them.
+```text
+no args / serve / --stdio
+        -> local stdio MCP
+        -> src/config.ts
+        -> service account or locally persisted Google OAuth
 
-## Conventions
+serve --http / --http
+        -> remote Streamable HTTP MCP
+        -> src/remote/*
+        -> per-user brokered Google OAuth
+```
 
-- **ESM with Node16 module resolution: all relative imports must end in `.js`** (e.g.
-  `import { ok } from "../play/format.js"`), even though the source is `.ts`.
-- **Tool handler shape:** `server.tool(name, description, zodShape, async (args) => { try { return
-ok(...); } catch (e) { return err(e); } })`. The third argument is a raw Zod shape object. Match this
-  try/catch-`ok`/`err` style exactly.
-- **Tool args are snake_case** and every field gets a `.describe(...)`. Descriptions are long and
-  agent-facing: name the fields that come back, state defaults and limits, and cross-reference
-  sibling tools ("Get review IDs from list_reviews").
-- **Every tool takes an optional `package_name`** resolved through `resolvePackage`.
-- **Pass the API through, don't fabricate fields.** Surface whatever Google returns rather than
-  hand-mapping into a fixed schema, so the server stays correct if fields are added or renamed.
-- **Don't add comments, docstrings, or type annotations** unless they already exist in the file
-  you're editing (per global preference).
-- **Scope of writes:** review replies, release/track/tester management, store listing and metadata
-  edits (including listing images), and app recovery actions. Do **not** add AAB/APK/deobfuscation
-  upload, in-app products/subscriptions, app creation, or user/permission management. Every write
-  tool that goes through the edits workflow must keep supporting `validate_only`.
-- **Destructive tools are opt-in.** Deletes, listing image uploads, and app recovery writes are only
-  registered when `allowDestructive` is true (`GOOGLE_PLAY_ALLOW_DESTRUCTIVE`). Implemented as an
-  early `if (!allowDestructive) return;` in the register function, with the gated tools after it, so
-  the gating is one obvious line rather than a per-tool condition. Any new delete, binary upload, or
-  irreversible non-edits-workflow write goes below that line.
-- **Secrets:** the repo is public. Never log the service account key or access tokens; only read
-  them from env. Tests use a locally generated throwaway RSA key.
+The no-argument behavior must remain `stdio` for upstream/Claude compatibility.
+
+## Local authentication
+
+- **`src/config.ts`** resolves `GOOGLE_PLAY_AUTH_MODE=auto|oauth|service-account`. In `auto`, a configured service account wins; otherwise local OAuth is used.
+- **`src/play/auth.ts`** implements the original service-account JWT exchange and token cache.
+- **`src/play/oauth.ts`** implements local Google Authorization Code + PKCE, protected token-file persistence and refresh-token exchange.
+- **`src/play/client.ts`** is the shared thin HTTP client for Android Publisher and Developer Reporting APIs.
+
+Local OAuth state is user-owned filesystem state. Never log or expose service-account keys, Google access tokens or refresh tokens.
+
+## Remote app mode
+
+Remote app mode is intentionally a separate authorization boundary. Never turn it into Google-token passthrough.
+
+```text
+ChatGPT/Codex -- MCP token --> play-console-mcp -- Google token --> Google Play APIs
+```
+
+- **`src/remote/config.ts`** validates HTTPS/public URL configuration, Google Web OAuth settings, private account allowlisting and server secrets.
+- **`src/remote/store.ts`** persists dynamic MCP client registrations and Google identities. Google refresh tokens are AES-256-GCM encrypted at rest. MCP access/refresh tokens are not stored.
+- **`src/remote/oauth.ts`** implements protected-resource metadata, authorization-server metadata, dynamic client registration, Authorization Code + PKCE, Google login brokerage and MCP access/refresh JWTs.
+- **`src/remote/http.ts`** authenticates every request, creates per-user `GooglePlayClient` instances and connects `McpServer` instances through `StreamableHTTPServerTransport`.
+
+Remote OAuth principles:
+
+- MCP bearer tokens are audience-bound to `MCP_PUBLIC_URL` and must never be forwarded to Google.
+- Google access tokens are short lived and created server-side from the connected user's encrypted refresh token.
+- `GOOGLE_OAUTH_ALLOWED_EMAILS` is the normal private-server mode. Accepting arbitrary Google accounts requires an explicit operator opt-in.
+- HTTP binds to loopback by default; non-loopback binds require explicit opt-in.
+- OAuth issuer is an origin, not a nested path.
+- Authorization codes/transactions are short-lived in-memory state.
+- Keep request/session/client-registration bounds conservative; remote endpoints are Internet-facing when deployed.
+
+## Tool policy
+
+**`src/tool-policy.ts`** wraps tool registration centrally so upstream tool modules do not need OpenAI-specific branches.
+
+Profiles:
+
+- `full` — normal read/write surface;
+- `readonly` — explicit fail-closed allowlist of reviewed non-mutating tools.
+
+MCP OAuth scopes in remote mode map to profiles:
+
+- `play.read` -> `readonly`;
+- `play.read play.write` -> `full`.
+
+Tool annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) are applied centrally.
+
+`GOOGLE_PLAY_ALLOWED_PACKAGES` is an independent defense-in-depth layer. When it is set, package-specific calls are checked and `list_apps` is hidden.
+
+## Write scope
+
+Standard writes are intentionally supported:
+
+- public review replies;
+- release creation/promotion using already-uploaded version codes;
+- rollout state/percentage changes;
+- release-note updates;
+- track and tester-group changes;
+- store-listing text and app-detail updates.
+
+Deletes, listing-image uploads and recovery writes remain behind `GOOGLE_PLAY_ALLOW_DESTRUCTIVE=1` in addition to requiring a full/write-capable session.
+
+Do **not** add APK/AAB/deobfuscation uploads unless the project scope is explicitly changed. The current design keeps artifact upload in CI.
+
+## Play edits workflow
+
+**`src/play/edits.ts`** implements:
+
+- `readWithEdit`: insert temporary edit -> read -> always delete, never commit;
+- `withEdit`: insert -> mutate -> validate+delete for dry-run or commit; delete on failure.
+
+Some semantic reads therefore issue HTTP `POST`/`DELETE`. Do not implement read-only security by HTTP verb. The tool allowlist is the authorization boundary.
+
+Every write tool using edits must retain `validate_only` support where the API allows it.
+
+## Tool modules
+
+`src/tools/*.ts` register domain-specific MCP tools:
+
+- `reviews.ts`
+- `releases.ts`
+- `listings.ts`
+- `artifacts.ts`
+- `recovery.ts`
+- `vitals.ts`
+- `apps.ts`
+
+Keep Google responses largely pass-through rather than fabricating rigid response models. Every package-specific tool takes optional `package_name`, resolved against the configured default.
+
+`src/tools/shared.ts` owns shared Zod shapes such as `packageArg`, `writeShape` and release-note schemas.
+
+## TypeScript conventions
+
+- ESM + Node16 resolution: relative imports end in `.js` even from `.ts` sources.
+- Tool arguments are snake_case and should have agent-facing `.describe(...)` text.
+- Tool handlers follow the existing try/catch + `ok`/`err` envelope style.
+- Keep the individual upstream tool modules independent from transport/provider-specific logic whenever possible.
+- Never log credentials or bearer tokens.
+- The repository is public; credential/state files belong outside Git and are ignored.
 
 ## Tests
 
-Tests live in `src/__tests__/*.test.ts`. Tool tests pass a fake `{ tool: (name, desc, schema,
-handler) => ... }` server to the `register*Tools` function to capture handlers, construct a real
-`GooglePlayClient` with a fake token provider (`async () => "tok"`), then stub global `fetch` and
-assert the exact request URL (path + `searchParams`) and request bodies. `releases.test.ts` asserts
-the **order and method of every call** in the edits workflow (insert → get → put → commit, or
-validate + delete), which is the part most likely to regress. `client.test.ts` covers URL building,
-empty bodies and error handling; `auth.test.ts` signs with a generated RSA key and asserts the JWT
-header/claims, both scopes and token caching; `config.ts` reads env at import time and exits if it's
-missing, so `config.test.ts` `vi.resetModules()` + `vi.stubEnv(...)` then dynamically `import()`s it.
+Existing tool tests capture registered handlers with fake MCP servers, use fake token providers and stub `fetch` to assert exact Google API traffic and edits ordering.
 
-Gated modules (`listings`, `recovery`) take `allowDestructive` as the fourth argument of the test
-`collect()` helper and assert the **exact list of registered tool names** when it is false, so a new
-destructive tool added above the gate fails the test. `listings.test.ts` `vi.mock`s
-`node:fs/promises` to stub `readFile` for the image upload path.
+Important suites:
+
+- `auth.test.ts` — service-account JWT exchange/cache;
+- `oauth.test.ts` — local Google OAuth persistence/refresh;
+- `tool-policy.test.ts` — readonly/full policy, annotations and package allowlisting;
+- `releases.test.ts` / `listings.test.ts` — Play edits behavior;
+- `remote-oauth.test.ts` — remote configuration/PKCE/redirect safety.
+
+When modifying remote auth, add tests for security invariants rather than only happy-path HTTP behavior.
