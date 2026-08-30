@@ -420,7 +420,7 @@ export class RemoteOAuthBroker {
     }
     const user = (await userResponse.json()) as GoogleUserInfo;
     if (!user.sub || !user.email) throw new Error("Google account did not return a subject and email.");
-    if (user.email_verified === false) throw new Error("Google account email is not verified.");
+    if (user.email_verified !== true) throw new Error("Google account email is not verified.");
     const email = user.email.toLowerCase();
     if (!this.config.allowAnyGoogleAccount && !this.config.allowedEmails.has(email)) {
       redirectResponse(res, clientRedirect("access_denied").toString());
