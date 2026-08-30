@@ -1,0 +1,31 @@
+{
+  "name": "google-play-console",
+  "version": "0.1.0",
+  "description": "Use Google Play Console reviews, store listings, releases and Android vitals from Codex and ChatGPT.",
+  "author": {
+    "name": "alsd4git",
+    "url": "https://github.com/alsd4git"
+  },
+  "homepage": "https://github.com/alsd4git/play-console-mcp",
+  "repository": "https://github.com/alsd4git/play-console-mcp",
+  "license": "MIT",
+  "keywords": ["google-play", "android", "mcp", "codex", "chatgpt"],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Google Play Console",
+    "shortDescription": "Reviews, listings, releases and Android vitals",
+    "longDescription": "Inspect Google Play Console data from Codex or ChatGPT using a locally operated MCP server. OAuth credentials stay on the machine running the server, and the packaged tool profile is read-only by default.",
+    "developerName": "alsd4git",
+    "category": "Developer Tools",
+    "capabilities": [],
+    "websiteURL": "https://github.com/alsd4git/play-console-mcp",
+    "privacyPolicyURL": "https://github.com/alsd4git/play-console-mcp/blob/main/docs/PRIVACY.md",
+    "termsOfServiceURL": "https://github.com/alsd4git/play-console-mcp/blob/main/docs/TERMS.md",
+    "defaultPrompt": [
+      "Summarize recent reviews across my Play Store apps",
+      "Show release status and Android vitals for my app",
+      "Audit my localized Play Store listings"
+    ],
+    "screenshots": []
+  }
+}
