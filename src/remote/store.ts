@@ -141,7 +141,7 @@ export class RemoteOAuthStore {
     const data = await this.load();
     if (Object.keys(data.clients).length >= maxClients) {
       throw new Error(
-        `OAuth client registration limit reached (${maxClients}). Reuse an existing connection or raise MCP_OAUTH_MAX_CLIENTS deliberately.`,
+        `OAuth client registration limit reached (${maxClients}). Reuse an existing registered client or remove stale client entries from the private state file.`,
       );
     }
     const clientId = `mcp_${randomBytes(24).toString("base64url")}`;
