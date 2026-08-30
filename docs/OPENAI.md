@@ -107,6 +107,26 @@ MCP_OAUTH_ALLOW_ANY_GOOGLE_ACCOUNT=1
 
 For personal use, prefer the email allowlist.
 
+### Docker Compose
+
+The included `compose.yaml` keeps the container read-only, drops Linux capabilities, binds the host port to loopback, and stores encrypted OAuth state in a named volume. Put the downloaded Google Web OAuth client outside the repository, then set the required values in your shell or in a local `.env` file:
+
+```dotenv
+MCP_PUBLIC_URL=https://your-domain.ngrok-free.app/mcp
+MCP_OAUTH_SECRET=replace-with-the-output-of-remote-secret
+GOOGLE_OAUTH_CLIENT_FILE=/absolute/path/to/google-web-client.json
+GOOGLE_OAUTH_ALLOWED_EMAILS=you@example.com
+GOOGLE_PLAY_ALLOWED_PACKAGES=com.example.app
+```
+
+Start the service with:
+
+```bash
+docker compose up --build -d
+```
+
+Forward the public HTTPS origin to `http://127.0.0.1:8787`. Keep the same public origin in `MCP_PUBLIC_URL` and in Google's authorized redirect URI. If the origin changes, update both values and restart the service before reconnecting the custom app.
+
 ### 3. What the OAuth endpoints expose
 
 With `MCP_PUBLIC_URL=https://play-mcp.example.com/mcp`, the server exposes:
