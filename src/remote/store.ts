@@ -173,13 +173,15 @@ export class RemoteOAuthStore {
         "Google did not return a refresh token. Reconnect and approve consent again, or revoke the existing app grant in your Google account first.",
       );
     }
+    const encryptedRefreshToken = input.refreshToken
+      ? encrypt(this.masterSecret, input.refreshToken)
+      : existing!.encryptedRefreshToken;
     data.users[input.subject] = {
       subject: input.subject,
       email: input.email,
-      encryptedRefreshToken: input.refreshToken
-        ? encrypt(this.masterSecret, input.refreshToken)
-        : existing.encryptedRefreshToken,
-      googleScopes: input.googleScopes.length > 0 ? input.googleScopes : existing.googleScopes,
+      encryptedRefreshToken,
+      googleScopes:
+        input.googleScopes.length > 0 ? input.googleScopes : (existing?.googleScopes ?? []),
       updatedAt: new Date().toISOString(),
     };
     await this.persist();
