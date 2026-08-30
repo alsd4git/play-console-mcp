@@ -6,32 +6,84 @@
 
 MCP server for the **Google Play Console**, built on the official Google Play Developer API and Play Developer Reporting API.
 
-It can inspect reviews, localized Store listings, releases, testing tracks, uploaded artifacts, recovery actions, crash/ANR reports, memory metrics and battery vitals. The existing release and listing write tools remain available in the full profile, while Codex and ChatGPT integrations use a fail-closed read-only profile by default.
+It can inspect and manage Play Store reviews, localized listings, release tracks, release notes, tester groups and staged rollouts, and can query Android vitals such as crashes, ANRs, memory pressure and battery metrics.
 
-This fork extends [`OrellBuehler/play-console-mcp`](https://github.com/OrellBuehler/play-console-mcp) without changing its default `stdio` behavior:
+This fork extends [`OrellBuehler/play-console-mcp`](https://github.com/OrellBuehler/play-console-mcp) while preserving the original no-argument `stdio` workflow for Claude and other local MCP clients.
 
-- Google user OAuth with Authorization Code + PKCE and local refresh-token storage;
-- a real `readonly` tool profile based on an explicit allowlist;
-- MCP tool annotations for clients such as Codex and ChatGPT;
-- optional package-name allowlisting;
-- Codex/OpenAI plugin metadata;
-- documented use through ChatGPT Secure MCP Tunnel;
-- unchanged service-account and Claude configuration paths.
+## Scope
 
-> **Deliberate scope:** no AAB/APK upload. Upload signed artifacts from CI or Play Console, then use this server to inspect or manage their version codes.
+Supported today:
 
-## Quick start with your Google account
+- read and reply to recent Play Store reviews;
+- inspect and edit localized Store listing text and app details;
+- inspect release tracks and already-uploaded version codes;
+- create/promote releases from version codes uploaded elsewhere;
+- update release notes and staged rollout state;
+- inspect/update tester groups and tracks;
+- inspect recovery actions;
+- query Android vitals, anomalies, crash/ANR issues and reports;
+- authenticate with a service account, local Google OAuth, or the remote per-user OAuth broker.
 
-### 1. Create a Google OAuth client
+Deliberately **not implemented**:
+
+- APK/AAB upload;
+- deobfuscation-file upload;
+- in-app products/subscriptions;
+- Play Console user/permission management.
+
+The intended artifact workflow remains: **CI uploads signed APK/AAB files; this MCP operates on the resulting Play Console state and version codes.**
+
+## Integration modes
+
+### 1. Local `stdio`
+
+Best for Claude Code, Codex CLI or any MCP client that launches a local process.
+
+```text
+MCP client -> stdio -> play-console-mcp -> Google Play APIs
+```
+
+Authentication can use either a service account or a locally stored Google OAuth login.
+
+### 2. Remote ChatGPT/Codex app mode
+
+Designed for the familiar connected-app experience:
+
+```text
+Install/connect app
+      -> Sign in with Google
+      -> connection remains associated with the OpenAI app
+      -> use from ChatGPT and Codex
+```
+
+The remote server is both an MCP resource server and an OAuth broker:
+
+```text
+ChatGPT / Codex
+      |
+      | MCP OAuth access token
+      v
+play-console-mcp
+      |
+      | short-lived Google access token
+      v
+Google Play APIs
+```
+
+The MCP bearer token is **not** a Google token and is never forwarded to Google. The server stores each connected user's Google refresh token encrypted and obtains Google access tokens only when making Play API calls.
+
+See [docs/OPENAI.md](./docs/OPENAI.md) for the complete setup and [docs/SECURITY.md](./docs/SECURITY.md) for the security model.
+
+## Quick start: local Google OAuth
 
 In Google Cloud:
 
 1. Enable **Google Play Android Developer API** and **Google Play Developer Reporting API**.
-2. Configure an OAuth consent screen. For a private app in testing, add your own Google account as a test user.
-3. Create an OAuth client of type **Desktop app** and download its JSON file.
-4. Ensure the same Google account has access to the relevant apps in Play Console.
+2. Configure the OAuth consent screen.
+3. Create an OAuth client of type **Desktop app**.
+4. Ensure the same Google account has access to the relevant Play Console apps.
 
-Authorize locally:
+Then run:
 
 ```bash
 npx -y github:alsd4git/play-console-mcp \
@@ -45,9 +97,13 @@ https://www.googleapis.com/auth/androidpublisher
 https://www.googleapis.com/auth/playdeveloperreporting
 ```
 
-It does **not** request Gmail, Drive, Calendar, profile, or general Google-account access. The refresh token stays in the operating-system configuration directory on the machine running the MCP server.
+Run the MCP server:
 
-Check or remove the login:
+```bash
+npx -y github:alsd4git/play-console-mcp
+```
+
+Useful OAuth commands:
 
 ```bash
 npx -y github:alsd4git/play-console-mcp auth status
@@ -55,51 +111,9 @@ npx -y github:alsd4git/play-console-mcp auth path
 npx -y github:alsd4git/play-console-mcp auth logout
 ```
 
-### 2. Run the read-only server
-
-```bash
-GOOGLE_PLAY_PROFILE=readonly \
-npx -y github:alsd4git/play-console-mcp
-```
-
-No arguments still means “start the MCP server over stdio”, preserving compatibility with the original project and Claude.
-
-## Codex
-
-The repository is an OpenAI/Codex plugin root. `.codex-plugin/plugin.json` references `.mcp.json`, which launches this fork and selects the read-only profile.
-
-A manual Codex MCP entry is equivalent:
-
-```toml
-[mcp_servers.play_console]
-command = "npx"
-args = ["-y", "github:alsd4git/play-console-mcp"]
-env = { GOOGLE_PLAY_PROFILE = "readonly" }
-```
-
-See [docs/OPENAI.md](./docs/OPENAI.md) for plugin and setup details.
-
-## ChatGPT web
-
-For private personal use, run this `stdio` server through **Secure MCP Tunnel** instead of exposing a public HTTP endpoint. Configure the tunnel to launch:
-
-```json
-{
-  "command": "npx",
-  "args": ["-y", "github:alsd4git/play-console-mcp"],
-  "env": {
-    "GOOGLE_PLAY_PROFILE": "readonly"
-  }
-}
-```
-
-Register the tunnel endpoint as a custom MCP app in ChatGPT Developer Mode. ChatGPT receives MCP results; the Google token remains on the tunnel host.
-
-An `.app.json` is intentionally not committed: OpenAI assigns its app ID when the private or public app is registered. Adding that generated file later does not require changing the MCP server.
-
 ## Claude Code
 
-The original service-account setup continues to work:
+The original service-account path remains supported:
 
 ```bash
 claude mcp add play-console \
@@ -108,7 +122,7 @@ claude mcp add play-console \
   -- npx -y github:alsd4git/play-console-mcp
 ```
 
-Or use the usual MCP JSON:
+Or configure it manually:
 
 ```json
 {
@@ -125,63 +139,141 @@ Or use the usual MCP JSON:
 }
 ```
 
-Because `GOOGLE_PLAY_PROFILE` defaults to `full`, existing Claude configurations retain upstream behavior. Add `GOOGLE_PLAY_PROFILE=readonly` when only inspection is needed.
+No arguments still means `stdio`, so existing Claude configurations remain compatible.
 
-## Authentication modes
+## Codex local plugin
 
-`GOOGLE_PLAY_AUTH_MODE` accepts:
+The repository contains `.codex-plugin/plugin.json` and `.mcp.json`. The packaged local MCP now uses the `full` profile, so normal write tools are available as well as reads.
 
-| Mode | Behavior |
-| --- | --- |
-| `auto` (default) | Uses a configured service account; otherwise loads the local OAuth login |
-| `oauth` | Requires the local Google user OAuth token |
-| `service-account` | Requires service-account JSON |
+Equivalent manual configuration:
 
-### Service account
-
-Set either:
-
-```bash
-export GOOGLE_SERVICE_ACCOUNT_KEY_PATH=/path/to/service-account.json
+```toml
+[mcp_servers.play_console]
+command = "npx"
+args = ["-y", "github:alsd4git/play-console-mcp"]
+env = { GOOGLE_PLAY_PROFILE = "full" }
 ```
 
-or:
+Set `GOOGLE_PLAY_PROFILE=readonly` when a local connection should expose inspection tools only.
 
-```bash
-export GOOGLE_SERVICE_ACCOUNT_KEY='{"type":"service_account",...}'
+## Remote app mode
+
+Remote mode uses **Streamable HTTP** and a per-user OAuth connection suitable for a private ChatGPT app.
+
+### Google Cloud setup
+
+Create a Google OAuth client of type **Web application** and add the callback URL of the MCP deployment, for example:
+
+```text
+https://play-mcp.example.com/oauth/google/callback
 ```
 
-Invite the service-account email under **Play Console → Users and permissions** and grant only the permissions needed for the chosen profile. Keep the JSON outside the repository.
+The remote flow requests:
 
-### OAuth storage
+```text
+openid
+email
+https://www.googleapis.com/auth/androidpublisher
+https://www.googleapis.com/auth/playdeveloperreporting
+```
 
-Default token locations:
+### Server setup
 
-- macOS: `~/Library/Application Support/play-console-mcp/google-oauth.json`
-- Linux: `${XDG_CONFIG_HOME:-~/.config}/play-console-mcp/google-oauth.json`
-- Windows: `%APPDATA%\play-console-mcp\google-oauth.json`
+Generate a high-entropy server secret:
 
-Override with `GOOGLE_OAUTH_TOKEN_PATH`, for example when mounting a secret volume.
+```bash
+npx -y github:alsd4git/play-console-mcp remote secret
+```
 
-## Tool profiles
+Example private deployment:
 
-### `readonly`
+```bash
+export MCP_PUBLIC_URL=https://play-mcp.example.com/mcp
+export MCP_OAUTH_SECRET='<generated secret>'
+export GOOGLE_OAUTH_CLIENT_CONFIG_PATH=/secrets/google-web-client.json
+export GOOGLE_OAUTH_ALLOWED_EMAILS=you@example.com
+export GOOGLE_PLAY_ALLOWED_PACKAGES=com.example.app,com.example.second
 
-Only explicitly classified non-mutating tools are registered. Mutating tools are absent from `tools/list` and rejected even if called by name. A future upstream tool is hidden until reviewed, so the profile fails closed.
+npx -y github:alsd4git/play-console-mcp serve --http
+```
 
-Google requires temporary edits for some reads. The server may therefore issue a `POST` to create an edit and a `DELETE` to discard it while reading listings, tracks or artifacts; it never commits the edit. Read-only enforcement is semantic rather than a naive HTTP-verb filter.
+The process listens on `127.0.0.1:8787` by default. Put a trusted HTTPS reverse proxy or tunnel in front of it.
 
-### `full`
+Remote access is **closed by default**. Use `GOOGLE_OAUTH_ALLOWED_EMAILS` for a personal deployment. A deliberately multi-user deployment must opt in with:
 
-Preserves upstream behavior, including review replies, listing edits and release management. Delete operations, image uploads and recovery writes still require:
+```bash
+MCP_OAUTH_ALLOW_ANY_GOOGLE_ACCOUNT=1
+```
+
+Binding Node itself to a non-loopback address also requires:
+
+```bash
+MCP_HTTP_ALLOW_PUBLIC_BIND=1
+```
+
+The default concurrent MCP session limit is 100 and can be changed with `MCP_HTTP_MAX_SESSIONS`.
+
+### OAuth/MCP endpoints
+
+For `MCP_PUBLIC_URL=https://play-mcp.example.com/mcp`, the server exposes:
+
+```text
+GET  /.well-known/oauth-protected-resource/mcp
+GET  /.well-known/oauth-authorization-server
+POST /oauth/register
+GET  /oauth/authorize
+POST /oauth/token
+GET  /oauth/google/callback
+POST /mcp
+GET  /healthz
+```
+
+The MCP authorization layer supports Authorization Code + PKCE, dynamic client registration, `play.read`, `play.write`, and `offline_access`.
+
+A connection with `play.write` gets the `full` tool profile. A connection with only `play.read` gets the fail-closed `readonly` profile.
+
+After registering the remote endpoint as a custom app in ChatGPT Developer Mode, complete the Google login once. When OpenAI assigns the app a real `asdk_app_...` ID, an `.app.json` can be added to this repository so the plugin references that registered app instead of inventing an ID beforehand.
+
+### Secure MCP Tunnel
+
+Secure MCP Tunnel remains a good option for the pre-authenticated local/stdio workflow.
+
+The brokered remote OAuth workflow additionally needs the OAuth discovery, authorization, token and Google callback routes reachable on the same public origin as `/mcp`. Use Secure MCP Tunnel for that mode only when its configuration forwards those companion HTTP routes; otherwise use an HTTPS reverse proxy or tunnel that does.
+
+## Write access
+
+Normal writes are enabled in the `full` profile:
+
+- `reply_to_review`;
+- store listing and app-detail updates;
+- release creation and promotion using version codes already uploaded by CI;
+- release-note updates;
+- rollout update/halt/resume/complete operations;
+- track creation and tester-group updates.
+
+Write tools that use Play's edits workflow retain `validate_only` where provided by the original server.
+
+Higher-risk existing operations remain a separate operator opt-in:
 
 ```bash
 GOOGLE_PLAY_ALLOW_DESTRUCTIVE=1
 ```
 
-For AI clients, use separate read-only and full MCP entries rather than changing one entry silently.
+That flag enables the existing delete, listing-image upload and recovery-write surface. It does **not** add APK/AAB upload support.
 
-## Optional package allowlist
+## Tool profiles
+
+### `full`
+
+Preserves the upstream write surface and is the packaged plugin default.
+
+### `readonly`
+
+Only explicitly classified non-mutating tools are exposed. New upstream tools remain hidden until classified, so the profile fails closed.
+
+Some Google Play reads require a temporary Play edit. The server may therefore create and delete an **uncommitted** temporary edit while reading listings/tracks. It never commits that read edit; read-only enforcement is semantic rather than a naive HTTP-method filter.
+
+## Package allowlist
 
 For defense in depth:
 
@@ -189,46 +281,58 @@ For defense in depth:
 export GOOGLE_PLAY_ALLOWED_PACKAGES=com.example.app,com.example.second
 ```
 
-Every package-specific tool rejects other package names. `list_apps` is hidden while the allowlist is active because it could reveal apps outside the approved set.
+Package-specific tools reject other app IDs. `list_apps` is hidden while this allowlist is enabled because it could reveal apps outside the approved set.
 
 ## Configuration
 
-| Variable | Required | Description |
-| --- | --- | --- |
-| `GOOGLE_PLAY_AUTH_MODE` | no | `auto`, `oauth`, or `service-account` |
-| `GOOGLE_OAUTH_TOKEN_PATH` | no | Override the locally stored OAuth token |
-| `GOOGLE_OAUTH_CLIENT_CONFIG_PATH` | login | Downloaded Google OAuth client JSON |
-| `GOOGLE_OAUTH_CLIENT_ID` | login | Alternative to a client JSON |
-| `GOOGLE_OAUTH_CLIENT_SECRET` | no | OAuth client secret when supplied separately |
-| `GOOGLE_SERVICE_ACCOUNT_KEY_PATH` | one of | Path to service-account JSON |
-| `GOOGLE_SERVICE_ACCOUNT_KEY` | one of | Inline service-account JSON |
-| `GOOGLE_PLAY_PACKAGE_NAME` | no | Default package name |
-| `GOOGLE_PLAY_PROFILE` | no | `full` (compatible default) or `readonly` |
-| `GOOGLE_PLAY_READ_ONLY` | no | Boolean alias that forces `readonly` |
-| `GOOGLE_PLAY_ALLOWED_PACKAGES` | no | Comma-separated package allowlist |
-| `GOOGLE_PLAY_ALLOW_DESTRUCTIVE` | no | Register delete, image-upload and recovery-write tools in `full` |
+### Local authentication
 
-## Main tools
+| Variable | Description |
+| --- | --- |
+| `GOOGLE_PLAY_AUTH_MODE` | `auto`, `oauth`, or `service-account` |
+| `GOOGLE_OAUTH_TOKEN_PATH` | Override local OAuth token storage |
+| `GOOGLE_OAUTH_CLIENT_CONFIG_PATH` | Google OAuth client JSON |
+| `GOOGLE_OAUTH_CLIENT_ID` | OAuth client ID when not using a JSON file |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | OAuth client secret |
+| `GOOGLE_SERVICE_ACCOUNT_KEY_PATH` | Service-account JSON path |
+| `GOOGLE_SERVICE_ACCOUNT_KEY` | Inline service-account JSON |
 
-The read-only profile covers:
+### Play tool policy
 
-- `list_reviews` and `get_review`;
-- release tracks, releases, country availability and testers;
-- localized listings, app details and Store images;
-- uploaded bundle/APK metadata, generated APKs and device-tier configurations;
-- recovery-action status;
-- app discovery and release filters;
-- crash, ANR, error, low-memory, memory, slow start/rendering, wakeup and wakelock metrics.
+| Variable | Description |
+| --- | --- |
+| `GOOGLE_PLAY_PACKAGE_NAME` | Default package name |
+| `GOOGLE_PLAY_PROFILE` | `full` or `readonly` |
+| `GOOGLE_PLAY_READ_ONLY` | Boolean alias forcing `readonly` |
+| `GOOGLE_PLAY_ALLOWED_PACKAGES` | Comma-separated package allowlist |
+| `GOOGLE_PLAY_ALLOW_DESTRUCTIVE` | Enables delete/image/recovery writes in `full` |
 
-The full profile additionally exposes review replies, listing updates, release creation/promotion, rollout management, release notes, tester changes and opt-in destructive/recovery operations.
+### Remote app mode
 
-## API limitations
+| Variable | Description |
+| --- | --- |
+| `MCP_PUBLIC_URL` | Public HTTPS MCP resource URL, normally ending in `/mcp` |
+| `MCP_OAUTH_SECRET` | Server token/encryption master secret |
+| `MCP_OAUTH_ISSUER` | Optional OAuth issuer origin; defaults to `MCP_PUBLIC_URL` origin |
+| `MCP_OAUTH_DATA_PATH` | Persistent encrypted remote OAuth state file |
+| `GOOGLE_OAUTH_ALLOWED_EMAILS` | Comma-separated Google-account allowlist |
+| `MCP_OAUTH_ALLOW_ANY_GOOGLE_ACCOUNT` | Explicit opt-in for arbitrary Google accounts |
+| `GOOGLE_OAUTH_REDIRECT_URI` | Optional explicit Google Web OAuth callback URI |
+| `MCP_HTTP_HOST` | Local listener host, default `127.0.0.1` |
+| `MCP_HTTP_PORT` | Local listener port, default `8787` |
+| `MCP_HTTP_MAX_SESSIONS` | Concurrent MCP session limit, default `100` |
+| `MCP_HTTP_ALLOW_PUBLIC_BIND` | Required to bind Node to a non-loopback address |
+| `MCP_ALLOW_INSECURE_HTTP` | Development-only insecure HTTP override |
 
-- Review APIs return only written reviews from production releases that were created or modified in roughly the last seven days.
-- Public review replies are capped at 350 characters.
-- Ratings history is not exposed by the Developer Reporting API.
-- Play Console UI sections without a public Google API cannot be reproduced by this server.
-- OAuth API scopes are broad; effective read-only behavior comes from Play Console permissions and the MCP tool policy. See [docs/SECURITY.md](./docs/SECURITY.md).
+See [.env.example](./.env.example) for a commented configuration template.
+
+## Google/API limitations
+
+- Google does not provide a narrower read-only Android Publisher OAuth scope; tool policy and Play Console permissions provide the effective authorization boundary.
+- Review APIs return only written reviews from production releases created or modified within Google's recent-review window.
+- Public developer replies are capped by Google Play.
+- Ratings history and some Play Console UI sections are not exposed by the public APIs.
+- Android vitals data is aggregated and may lag behind real time.
 
 ## Development
 
@@ -243,23 +347,21 @@ npm test
 npm run build
 ```
 
-Test OAuth from the local build:
+Local MCP smoke test:
 
 ```bash
-node dist/index.js auth login --client /path/to/client_secret.json
-node dist/index.js auth status
+npx @modelcontextprotocol/inspector node dist/index.js
 ```
 
-Smoke-test the MCP server:
+Remote server:
 
 ```bash
-GOOGLE_PLAY_PROFILE=readonly \
-npx @modelcontextprotocol/inspector node dist/index.js
+node dist/index.js serve --http
 ```
 
 ## Upstream compatibility
 
-The fork keeps the same no-argument `stdio` entry point, environment variables and default full tool surface as the original project. OAuth, profiles, annotations and OpenAI packaging are additive. This separation is intentional so generally useful changes can be proposed upstream later.
+The fork keeps the original `stdio` entry point, service-account workflow and existing Google Play tool modules. Local OAuth, tool profiles, MCP annotations, OpenAI packaging and remote OAuth/HTTP support are additive layers around that core. This is intentional so generally useful pieces can still be proposed upstream independently.
 
 ## License
 
