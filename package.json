@@ -1,14 +1,17 @@
 {
   "name": "@orellbuehler/play-console-mcp",
   "version": "0.3.0",
-  "description": "Model Context Protocol server for the Google Play Console: read and reply to user reviews, inspect and promote release tracks, and query crash/ANR vitals over the official Google Play Developer and Play Developer Reporting APIs.",
+  "description": "Model Context Protocol server for Google Play Console with service-account and local Google OAuth support",
   "type": "module",
   "bin": {
     "play-console-mcp": "dist/index.js"
   },
   "files": [
     "dist",
-    "!dist/__tests__"
+    "!dist/__tests__",
+    ".mcp.json",
+    ".codex-plugin",
+    "docs"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -19,7 +22,8 @@
     "lint": "eslint src",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "auth": "node dist/index.js auth"
   },
   "engines": {
     "node": ">=20"
@@ -34,7 +38,11 @@
     "reviews",
     "releases",
     "llm",
-    "ai"
+    "ai",
+    "openai",
+    "codex",
+    "chatgpt",
+    "oauth"
   ],
   "author": "Orell Bühler",
   "license": "MIT",
