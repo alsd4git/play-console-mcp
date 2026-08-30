@@ -8,7 +8,6 @@ import {
   GOOGLE_PLAY_OAUTH_SCOPES,
 } from "../play/oauth.js";
 import {
-  MCP_DESTRUCTIVE_SCOPE,
   MCP_OFFLINE_SCOPE,
   MCP_READ_SCOPE,
   MCP_WRITE_SCOPE,
@@ -146,12 +145,7 @@ export class RemoteOAuthBroker {
       "/.well-known/oauth-authorization-server",
       config.issuer,
     );
-    this.supportedScopes = [
-      MCP_READ_SCOPE,
-      MCP_WRITE_SCOPE,
-      MCP_OFFLINE_SCOPE,
-      ...(config.allowDestructive ? [MCP_DESTRUCTIVE_SCOPE] : []),
-    ];
+    this.supportedScopes = [MCP_READ_SCOPE, MCP_WRITE_SCOPE, MCP_OFFLINE_SCOPE];
     this.store = new RemoteOAuthStore(config.dataPath, config.masterSecret);
     this.tokenKey = signingKey(config.masterSecret);
   }
@@ -318,6 +312,13 @@ export class RemoteOAuthBroker {
       throw new OAuthProtocolError("invalid_target", "OAuth resource does not match this MCP server.");
     }
     const scopes = this.validateScopes(url.searchParams.get("scope") ?? undefined);
+    if (this.transactions.size >= 1000) {
+      throw new OAuthProtocolError(
+        "temporarily_unavailable",
+        "Too many pending authorization requests. Try again later.",
+        503,
+      );
+    }
     const state = randomBytes(32).toString("base64url");
     this.transactions.set(state, {
       clientId,
@@ -520,11 +521,7 @@ export class RemoteOAuthBroker {
       const refreshToken = record.scopes.includes(MCP_OFFLINE_SCOPE)
         ? await this.issueToken(identity, "refresh")
         : undefined;
-      jsonResponse(
-        res,
-        200,
-        this.tokenResponse({ accessToken, refreshToken, scopes: record.scopes }),
-      );
+      jsonResponse(res, 200, this.tokenResponse({ accessToken, refreshToken, scopes: record.scopes }));
       return;
     }
 
@@ -561,11 +558,7 @@ export class RemoteOAuthBroker {
       const identity = { clientId, subject: payload.sub, email, scopes: requested };
       const accessToken = await this.issueToken(identity, "access");
       const refreshToken = await this.issueToken(identity, "refresh");
-      jsonResponse(
-        res,
-        200,
-        this.tokenResponse({ accessToken, refreshToken, scopes: requested }),
-      );
+      jsonResponse(res, 200, this.tokenResponse({ accessToken, refreshToken, scopes: requested }));
       return;
     }
 
