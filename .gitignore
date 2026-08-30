@@ -7,3 +7,6 @@ coverage/
 !.env.example
 service-account*.json
 *-service-account*.json
+client_secret*.json
+oauth-client*.json
+google-oauth*.json
