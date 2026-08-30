@@ -1,6 +1,6 @@
 {
   "name": "google-play-console",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Use Google Play Console reviews, store listings, releases and Android vitals from Codex and ChatGPT.",
   "author": {
     "name": "alsd4git",
@@ -9,22 +9,22 @@
   "homepage": "https://github.com/alsd4git/play-console-mcp",
   "repository": "https://github.com/alsd4git/play-console-mcp",
   "license": "MIT",
-  "keywords": ["google-play", "android", "mcp", "codex", "chatgpt"],
+  "keywords": ["google-play", "android", "mcp", "codex", "chatgpt", "oauth"],
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Google Play Console",
-    "shortDescription": "Reviews, listings, releases and Android vitals",
-    "longDescription": "Inspect Google Play Console data from Codex or ChatGPT using a locally operated MCP server. OAuth credentials stay on the machine running the server, and the packaged tool profile is read-only by default.",
+    "shortDescription": "Manage reviews, listings, releases and Android vitals",
+    "longDescription": "Inspect and manage Google Play Console data from Codex or ChatGPT. The local MCP supports service accounts or local Google OAuth; the optional remote mode provides a persistent per-user OAuth connection suitable for ChatGPT apps. APK/AAB uploads remain delegated to CI.",
     "developerName": "alsd4git",
     "category": "Developer Tools",
-    "capabilities": [],
+    "capabilities": ["Write"],
     "websiteURL": "https://github.com/alsd4git/play-console-mcp",
     "privacyPolicyURL": "https://github.com/alsd4git/play-console-mcp/blob/main/docs/PRIVACY.md",
     "termsOfServiceURL": "https://github.com/alsd4git/play-console-mcp/blob/main/docs/TERMS.md",
     "defaultPrompt": [
-      "Summarize recent reviews across my Play Store apps",
+      "Summarize recent reviews and suggest replies",
       "Show release status and Android vitals for my app",
-      "Audit my localized Play Store listings"
+      "Audit and improve my localized Play Store listings"
     ],
     "screenshots": []
   }

@@ -178,7 +178,7 @@ export function applyToolPolicy(server: McpServer, options: ToolPolicyOptions): 
     index = callbackIndex(rest);
     const annotations = toolAnnotations(name);
     if (isAnnotationObject(rest[index - 1])) {
-      rest[index - 1] = { ...rest[index - 1], ...annotations };
+      rest[index - 1] = { ...(rest[index - 1] as ToolAnnotationsLike), ...annotations };
     } else {
       rest.splice(index, 0, annotations);
     }

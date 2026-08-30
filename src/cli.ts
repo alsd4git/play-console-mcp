@@ -5,6 +5,7 @@ import {
   loginWithGoogleOAuth,
   readOAuthTokenRecord,
 } from "./play/oauth.js";
+import { remoteSecret } from "./remote/config.js";
 
 function optionValue(args: string[], name: string): string | undefined {
   const index = args.indexOf(name);
@@ -35,16 +36,30 @@ Login options:
 `;
 }
 
+function remoteHelp(): string {
+  return `Remote ChatGPT/Codex server commands:
+
+  play-console-mcp serve --http   Start Streamable HTTP + OAuth broker
+  play-console-mcp remote secret  Generate an MCP_OAUTH_SECRET
+
+Remote mode requires MCP_PUBLIC_URL, MCP_OAUTH_SECRET, a Google Web OAuth client,
+and either GOOGLE_OAUTH_ALLOWED_EMAILS or MCP_OAUTH_ALLOW_ANY_GOOGLE_ACCOUNT=1.
+See docs/OPENAI.md for the complete setup.
+`;
+}
+
 export function mainHelp(): string {
   return `play-console-mcp
 
 Usage:
   play-console-mcp                 Start the MCP server over stdio
   play-console-mcp serve           Start the MCP server over stdio
+  play-console-mcp serve --http    Start the remote Streamable HTTP server
   play-console-mcp auth <command>  Manage local Google OAuth credentials
+  play-console-mcp remote <cmd>    Remote-server utilities
   play-console-mcp --help          Show this help
 
-The no-argument behavior is unchanged for Claude, Codex and other MCP clients.
+The no-argument behavior remains stdio for Claude, Codex and other local MCP clients.
 `;
 }
 
@@ -104,5 +119,21 @@ export async function runAuthCommand(args: string[]): Promise<void> {
       return;
     default:
       throw new Error(`Unknown auth command '${command}'.\n\n${authHelp()}`);
+  }
+}
+
+export async function runRemoteCommand(args: string[]): Promise<void> {
+  const command = args[0] ?? "help";
+  switch (command) {
+    case "secret":
+      console.log(remoteSecret());
+      return;
+    case "help":
+    case "--help":
+    case "-h":
+      console.log(remoteHelp());
+      return;
+    default:
+      throw new Error(`Unknown remote command '${command}'.\n\n${remoteHelp()}`);
   }
 }

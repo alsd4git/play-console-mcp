@@ -2,11 +2,11 @@
   "mcpServers": {
     "play-console": {
       "title": "Google Play Console",
-      "description": "Inspect Play Store reviews, listings, releases and Android vitals. The packaged profile is read-only by default.",
+      "description": "Inspect and manage Play Store reviews, listings, releases and Android vitals. APK/AAB uploads remain outside this MCP.",
       "command": "npx",
       "args": ["-y", "github:alsd4git/play-console-mcp"],
       "env": {
-        "GOOGLE_PLAY_PROFILE": "readonly"
+        "GOOGLE_PLAY_PROFILE": "full"
       }
     }
   }
