@@ -134,11 +134,16 @@ export class RemoteOAuthStore {
     await this.persistChain;
   }
 
-  async registerClient(input: {
-    redirectUris: string[];
-    clientName?: string;
-  }): Promise<RegisteredClient> {
+  async registerClient(
+    input: { redirectUris: string[]; clientName?: string },
+    maxClients = 100,
+  ): Promise<RegisteredClient> {
     const data = await this.load();
+    if (Object.keys(data.clients).length >= maxClients) {
+      throw new Error(
+        `OAuth client registration limit reached (${maxClients}). Reuse an existing connection or raise MCP_OAUTH_MAX_CLIENTS deliberately.`,
+      );
+    }
     const clientId = `mcp_${randomBytes(24).toString("base64url")}`;
     const client: RegisteredClient = {
       clientId,
