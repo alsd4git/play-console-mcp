@@ -17,7 +17,6 @@ export interface RemoteOAuthConfig {
   allowedEmails: ReadonlySet<string>;
   allowAnyGoogleAccount: boolean;
   allowDestructive: boolean;
-  maxRegisteredClients: number;
 }
 
 function envBoolean(name: string): boolean {
@@ -59,14 +58,6 @@ function remoteDataPath(): string {
   }
   const configHome = envValue("XDG_CONFIG_HOME") ?? join(homedir(), ".config");
   return join(configHome, "play-console-mcp", "remote-oauth.json");
-}
-
-function positiveInteger(value: string | undefined, fallback: number, name: string): number {
-  const result = value === undefined ? fallback : Number(value);
-  if (!Number.isInteger(result) || result < 1) {
-    throw new Error(`${name} must be a positive integer.`);
-  }
-  return result;
 }
 
 function parseAllowedEmails(): ReadonlySet<string> {
@@ -150,11 +141,6 @@ export async function loadRemoteOAuthConfig(): Promise<RemoteOAuthConfig> {
     allowedEmails,
     allowAnyGoogleAccount,
     allowDestructive: envBoolean("GOOGLE_PLAY_ALLOW_DESTRUCTIVE"),
-    maxRegisteredClients: positiveInteger(
-      envValue("MCP_OAUTH_MAX_CLIENTS"),
-      100,
-      "MCP_OAUTH_MAX_CLIENTS",
-    ),
   };
 }
 
