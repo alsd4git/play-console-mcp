@@ -42,11 +42,17 @@ function packageAllowlist(): ReadonlySet<string> | undefined {
   return values.length > 0 ? new Set(values) : undefined;
 }
 
-function numericPort(value: string | undefined): number {
-  const port = value === undefined ? 8787 : Number(value);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error("MCP_HTTP_PORT must be an integer between 1 and 65535.");
+function positiveInteger(value: string | undefined, fallback: number, name: string): number {
+  const result = value === undefined ? fallback : Number(value);
+  if (!Number.isInteger(result) || result < 1) {
+    throw new Error(`${name} must be a positive integer.`);
   }
+  return result;
+}
+
+function numericPort(value: string | undefined): number {
+  const port = positiveInteger(value, 8787, "MCP_HTTP_PORT");
+  if (port > 65535) throw new Error("MCP_HTTP_PORT must not exceed 65535.");
   return port;
 }
 
@@ -126,6 +132,11 @@ export async function startRemoteServer(): Promise<void> {
   const sessions = new Map<string, McpSession>();
   const host = process.env.MCP_HTTP_HOST?.trim() || "127.0.0.1";
   const port = numericPort(process.env.MCP_HTTP_PORT?.trim() || undefined);
+  const maxSessions = positiveInteger(
+    process.env.MCP_HTTP_MAX_SESSIONS?.trim() || undefined,
+    100,
+    "MCP_HTTP_MAX_SESSIONS",
+  );
   if (!isLoopbackHostname(host) && !envBoolean("MCP_HTTP_ALLOW_PUBLIC_BIND")) {
     throw new Error(
       "Remote HTTP binds to loopback by default. Set MCP_HTTP_ALLOW_PUBLIC_BIND=1 explicitly before binding a non-loopback address.",
@@ -133,7 +144,7 @@ export async function startRemoteServer(): Promise<void> {
   }
   const defaultPackageName = process.env.GOOGLE_PLAY_PACKAGE_NAME?.trim() || undefined;
   const allowedPackages = packageAllowlist();
-  const destructiveConfigured = envBoolean("GOOGLE_PLAY_ALLOW_DESTRUCTIVE");
+  const destructiveConfigured = broker.config.allowDestructive;
   const mcpPath = broker.config.resource.pathname.replace(/\/$/, "") || "/";
 
   const httpServer = createHttpServer(async (rawReq, res) => {
@@ -184,6 +195,10 @@ export async function startRemoteServer(): Promise<void> {
 
       if (req.method !== "POST") {
         jsonError(res, 400, "MCP session ID is required after initialization");
+        return;
+      }
+      if (sessions.size >= maxSessions) {
+        jsonError(res, 503, "MCP session limit reached");
         return;
       }
 
