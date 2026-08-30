@@ -55,7 +55,9 @@ async function readStore(path: string): Promise<StoreFile> {
     return validateStore(JSON.parse(await readFile(path, "utf8")), path);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return emptyStore();
-    if (error instanceof SyntaxError) throw new Error(`${path} is not valid JSON: ${error.message}`);
+    if (error instanceof SyntaxError) {
+      throw new Error(`${path} is not valid JSON: ${error.message}`, { cause: error });
+    }
     throw error;
   }
 }

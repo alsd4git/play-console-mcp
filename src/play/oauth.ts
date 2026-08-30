@@ -104,7 +104,7 @@ export function parseOAuthClientConfig(
   try {
     parsed = JSON.parse(text) as GoogleOAuthClientFile;
   } catch (error) {
-    throw new Error(`${source} is not valid JSON: ${String(error)}`);
+    throw new Error(`${source} is not valid JSON: ${String(error)}`, { cause: error });
   }
 
   const section = parsed.installed ?? parsed.web;
@@ -176,6 +176,7 @@ export async function readOAuthTokenRecord(
     if (code === "ENOENT") {
       throw new Error(
         `No Google OAuth login found at ${tokenPath}. Run 'play-console-mcp auth login --client /path/to/client_secret.json'.`,
+        { cause: error },
       );
     }
     throw error;
@@ -184,7 +185,7 @@ export async function readOAuthTokenRecord(
     return validateTokenRecord(JSON.parse(text), tokenPath);
   } catch (error) {
     if (error instanceof SyntaxError) {
-      throw new Error(`${tokenPath} is not valid JSON: ${error.message}`);
+      throw new Error(`${tokenPath} is not valid JSON: ${error.message}`, { cause: error });
     }
     throw error;
   }
@@ -249,8 +250,9 @@ async function tokenRequest(params: URLSearchParams): Promise<OAuthTokenResponse
   }
   if (!response.ok || result.error) {
     const detail = result.error_description ?? result.error ?? text;
+    const errorCode = result.error ? `${result.error}: ` : "";
     throw new Error(
-      `Google OAuth token request failed: ${response.status} ${response.statusText}: ${detail}`,
+      `Google OAuth token request failed: ${response.status} ${response.statusText}: ${errorCode}${detail}`,
     );
   }
   return result;

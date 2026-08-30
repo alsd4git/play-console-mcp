@@ -7,18 +7,18 @@ describe("config", () => {
     vi.stubEnv("GOOGLE_SERVICE_ACCOUNT_KEY_PATH", "");
     vi.stubEnv("GOOGLE_PLAY_PACKAGE_NAME", "");
     vi.stubEnv("GOOGLE_PLAY_ALLOW_DESTRUCTIVE", "");
+    vi.stubEnv("GOOGLE_PLAY_AUTH_MODE", "auto");
+    vi.stubEnv("GOOGLE_OAUTH_TOKEN_PATH", "/tmp/nonexistent-google-oauth.json");
   });
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
-  it("exits when no service account key is configured", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.spyOn(process, "exit").mockImplementation(() => {
-      throw new Error("exit:1");
-    });
-    await expect(import("../config.js")).rejects.toThrow("exit:1");
+  it("defaults to user OAuth when no service account key is configured", async () => {
+    const { config } = await import("../config.js");
+    expect(config.authMode).toBe("oauth");
+    expect(config.oauthTokenPath).toBe("/tmp/nonexistent-google-oauth.json");
   });
 
   it("accepts an inline service account key", async () => {
@@ -33,7 +33,7 @@ describe("config", () => {
     vi.stubEnv("GOOGLE_PLAY_PACKAGE_NAME", "com.acme.app");
     const { config } = await import("../config.js");
     expect(config.packageName).toBe("com.acme.app");
-    expect(config.transport).toBe("stdio");
+    expect(config.authMode).toBe("service-account");
   });
 
   it("leaves the package name undefined when unset", async () => {
