@@ -2,6 +2,14 @@
 
 This fork keeps the original `stdio` MCP interface. Claude, Codex, the OpenAI plugin package, and Secure MCP Tunnel can therefore all launch the same process.
 
+The examples below intentionally pin the GitHub dependency to `v0.3.0`:
+
+```text
+github:alsd4git/play-console-mcp#v0.3.0
+```
+
+When upgrading, change the tag explicitly so the MCP server does not move unexpectedly with the default branch.
+
 ## 1. Authorize your Google account
 
 Create an OAuth client in Google Cloud:
@@ -14,7 +22,7 @@ Create an OAuth client in Google Cloud:
 Then run:
 
 ```bash
-npx -y github:alsd4git/play-console-mcp \
+npx -y github:alsd4git/play-console-mcp#v0.3.0 \
   auth login --client /absolute/path/to/client_secret.json
 ```
 
@@ -28,9 +36,9 @@ It does not request Gmail, Drive, Calendar, profile, or general Google-account a
 Useful commands:
 
 ```bash
-npx -y github:alsd4git/play-console-mcp auth status
-npx -y github:alsd4git/play-console-mcp auth path
-npx -y github:alsd4git/play-console-mcp auth logout
+npx -y github:alsd4git/play-console-mcp#v0.3.0 auth status
+npx -y github:alsd4git/play-console-mcp#v0.3.0 auth path
+npx -y github:alsd4git/play-console-mcp#v0.3.0 auth logout
 ```
 
 For a machine without a usable browser, add `--no-browser` and open the printed URL on the same machine/session. A service account remains the simpler choice for a fully headless server.
@@ -44,7 +52,7 @@ A manual Codex configuration is equivalent:
 ```toml
 [mcp_servers.play_console]
 command = "npx"
-args = ["-y", "github:alsd4git/play-console-mcp"]
+args = ["-y", "github:alsd4git/play-console-mcp#v0.3.0"]
 env = { GOOGLE_PLAY_PROFILE = "readonly" }
 ```
 
@@ -57,7 +65,7 @@ Secure MCP Tunnel can launch a local `stdio` server, so this project does not ne
 ```json
 {
   "command": "npx",
-  "args": ["-y", "github:alsd4git/play-console-mcp"],
+  "args": ["-y", "github:alsd4git/play-console-mcp#v0.3.0"],
   "env": {
     "GOOGLE_PLAY_PROFILE": "readonly"
   }
@@ -73,7 +81,7 @@ Do not add a fabricated `.app.json` to this repository. OpenAI assigns the app I
 The plugin defaults to read-only. To expose the upstream write tools, run the server with:
 
 ```bash
-GOOGLE_PLAY_PROFILE=full npx -y github:alsd4git/play-console-mcp
+GOOGLE_PLAY_PROFILE=full npx -y github:alsd4git/play-console-mcp#v0.3.0
 ```
 
 The more dangerous delete, image-upload, and recovery-write tools additionally require:
