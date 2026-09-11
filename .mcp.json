@@ -4,7 +4,7 @@
       "title": "Google Play Console",
       "description": "Inspect Play Store reviews, listings, releases and Android vitals. The packaged profile is read-only by default.",
       "command": "npx",
-      "args": ["-y", "github:alsd4git/play-console-mcp"],
+      "args": ["-y", "github:alsd4git/play-console-mcp#v0.3.0"],
       "env": {
         "GOOGLE_PLAY_PROFILE": "readonly"
       }
